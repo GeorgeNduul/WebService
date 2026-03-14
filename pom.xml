@@ -14,22 +14,29 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <failOnMissingWebXml>false</failOnMissingWebXml>
         <jakartaee>8.0.0</jakartaee>
+        <exec.mainClass>JCosmosDB</exec.mainClass>
+
     </properties>
-    
     <dependencies>
-        <dependency>
-            <groupId>jakarta.platform</groupId>
-            <artifactId>jakarta.jakartaee-api</artifactId>
-            <version>${jakartaee}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-<groupId>org.json</groupId>
-<artifactId>json</artifactId>
-<version>20240303</version>
-</dependency>
-       
-    </dependencies>
+    <dependency>
+        <groupId>com.azure</groupId>
+        <artifactId>azure-cosmos</artifactId>
+        <version>4.78.0</version>
+    </dependency>
+
+    <dependency>
+        <groupId>jakarta.platform</groupId>
+        <artifactId>jakarta.jakartaee-api</artifactId>
+        <version>${jakartaee}</version>
+        <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+        <groupId>org.json</groupId>
+        <artifactId>json</artifactId>
+        <version>20240303</version>
+    </dependency>
+</dependencies>
     
     
      <build>

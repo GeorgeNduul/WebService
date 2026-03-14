@@ -85,6 +85,7 @@ public class EventResource {
             @QueryParam("title") String title,
             @QueryParam("type") String type,
             @QueryParam("loc") String loc,
+            @QueryParam("cost")String cost, 
             @QueryParam("max") int max) {
         try {
             String content = Files.readString(Paths.get(FILE_PATH), StandardCharsets.UTF_8);

@@ -1,0 +1,101 @@
+    [     
+        {   "event_id":1,
+            "publisher_id": "STUDENT001",
+            "title": "Campus Football Match",
+            "type": "sport",
+            "date": "2026-03-12",
+            "location": "Main Sports Field",
+            "cost": 0,
+            "max_participants": 10
+        },
+        {   
+            "event_id":2,
+            "publisher_id": "STUDENT002",
+            "title": "Afrobeats Music Night",
+            "type": "concert",
+            "date": "2026-04-05",
+            "location": "Student Union Hall",
+            "cost": 5,
+            "max_participants": 120
+        },
+        {
+            "event_id":3, 
+            "publisher_id": "STUDENT003",
+            "title": "Board Games Evening",
+            "type": "social",
+            "date": "2026-03-20",
+            "location": "Global Lounge, Clifton Campus",
+            "cost": 0,
+            "max_participants": 4
+        },
+        {
+            "event_id":4,
+            "publisher_id": "STUDENT004",
+            "title": "Hiking Trip to Peak District",
+            "type": "trip",
+            "date": "2026-05-02",
+            "location": "Peak District National Park",
+            "cost": 15,
+            "max_participants": 20
+        },
+        {
+            "event_id":5,
+            "publisher_id": "STUDENT005",
+            "title": "Trent Riverside Parkrun Meet",
+            "type": "sport",
+            "date": "2026-03-28",
+            "location": "Victoria Embankment, Nottingham",
+            "cost":0,
+            "max_participants": 40
+        },
+        {
+            "event_id":6,
+            "publisher_id": "STUDENT006",
+            "title": "STEM Careers Mixer",
+            "type": "networking",
+            "date": "2026-05-06",
+            "location": "University of Nottingham Students' Union",
+            "cost": 0,
+            "max_participants": 50
+        },
+        {
+            "event_id":7,
+            "publisher_id": "STUDENT007",
+            "title": "Curry Mile Food Crawl",
+            "type": "food",
+            "date": "2026-06-05",
+            "location": "Hyson Green & Radford, Nottingham",
+            "cost": 12,
+            "max_participants": 20
+        },
+        {
+            "event_id":8,
+            "publisher_id": "STUDENT008",
+            "title": "Shakespeare in the Park",
+            "type": "theatre",
+            "date": "2026-06-20",
+            "location": "Theatre Royal, Nottingham",
+            "cost": 22,
+            "max_participants": 5
+        },
+        {
+            "event_id":9,
+            "publisher_id": "STUDENT009,",
+            "title": "London Museums Day Trip",
+            "type": "trip",
+            "date": "2026-07-04",
+            "location": "British Museum & National Gallery, London",
+            "cost": 25,
+            "max_participants": 45
+        },
+        {
+            "event_id":10,
+            "publisher_id": "STUDENT010",
+            "title": "Coding Dojo – Java for MongoDB",
+            "type": "workshop",
+            "date": "2026-04-29",
+            "location": "ISTEC Building, Clifton Campus, NTU",
+            "cost": 0,
+            "max_participants": 40
+        }
+    ]
