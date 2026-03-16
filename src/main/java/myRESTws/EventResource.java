@@ -1,21 +1,17 @@
 package myRESTws;
 
-
-/**
- *
- * @author t0337312
- */
-
-
 import com.azure.cosmos.*;
 import com.azure.cosmos.models.*;
 import com.azure.cosmos.util.CosmosPagedIterable;
-import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.MediaType;
+import javax.ws.rs.*;
+import javax.ws.rs.core.MediaType;
 import java.util.*;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
-
+/*
+author:t0337312
+*/
 
 @Path("events")
 public class EventResource {
@@ -24,7 +20,6 @@ public class EventResource {
     private static final String KEY = "RzFCEjiExm09uTtwYHQRlKrCsieH8FGkvhVNA9AIHhON7v2U1oUHjkzvBRXEdlJkmS1aMyI9HCeaACDb4RNFXQ==";
     private static final String DATABASE_NAME = "coursework";
     private static final String CONTAINER_NAME = "Events";
-   private static final String PARTITION_KEY_FIELD = "event_id";
 
     private final CosmosContainer container;
 
@@ -37,17 +32,14 @@ public class EventResource {
     }
 
     /**
-     * FEATURE A: Subscribe/Register a Student
-     * For a NoSQL approach, we can store students in a "Students" container 
-     * or simply acknowledge their ID for future publishing/booking.
+     * FEATURE A: Subscribe Student
      */
     @POST
     @Path("subscribe")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Map<String, Object> subscribeStudent(Map<String, Object> studentData) {
-        // Implementation logic for adding a student to a student container
-        // Returns the student object directly
+        studentData.put("subscription_date", new Date().toString());
         return studentData; 
     }
 
@@ -58,21 +50,20 @@ public class EventResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Map<String, Object> addEvent(Map<String, Object> eventData) {
-        // Ensure the mandatory Cosmos 'id' field is set
-        if (!eventData.containsKey("id")) {
+        if (eventData.containsKey("event_id")) {
             eventData.put("id", String.valueOf(eventData.get("event_id")));
+        } else {
+            String newId = UUID.randomUUID().toString();
+            eventData.put("id", newId);
+            eventData.put("event_id", newId);
         }
-        
-        // Initialize attendees if not provided
         eventData.putIfAbsent("attendees", new ArrayList<String>());
-
         container.createItem(eventData);
         return eventData;
     }
 
     /**
-     * FEATURE C: List and Search Events
-     * Dynamic filtering based on type, location, or cost.
+     * FEATURE C: Sophisticated Search
      */
     @GET
     @Produces(MediaType.APPLICATION_JSON)
@@ -84,15 +75,15 @@ public class EventResource {
         StringBuilder sql = new StringBuilder("SELECT * FROM c WHERE 1=1");
         List<SqlParameter> params = new ArrayList<>();
 
-        if (type != null) {
+        if (type != null && !type.isEmpty()) {
             sql.append(" AND c.type = @type");
             params.add(new SqlParameter("@type", type));
         }
-        if (location != null) {
-            sql.append(" AND CONTAINS(c.location, @loc)");
+        if (location != null && !location.isEmpty()) {
+            sql.append(" AND CONTAINS(LOWER(c.location), LOWER(@loc))");
             params.add(new SqlParameter("@loc", location));
         }
-        if (date != null) {
+        if (date != null && !date.isEmpty()) {
             sql.append(" AND c.date = @date");
             params.add(new SqlParameter("@date", date));
         }
@@ -106,8 +97,7 @@ public class EventResource {
     }
 
     /**
-     * FEATURE D: Register for an Event
-     * Updates the attendees list for a specific event.
+     * FEATURE D: Register for Event
      */
     @POST
     @Path("{event_id}/register")
@@ -115,22 +105,36 @@ public class EventResource {
     @Produces(MediaType.APPLICATION_JSON)
     public Map<String, Object> registerForEvent(@PathParam("event_id") String eventId, Map<String, String> body) {
         String studentId = body.get("student_id");
-        
-        // Fetch existing event
-        PartitionKey pk = new PartitionKey(Integer.parseInt(eventId));
+        PartitionKey pk = new PartitionKey(eventId);
         Map<String, Object> event = container.readItem(eventId, pk, Map.class).getItem();
 
-        List<String> attendees = (List<String>) event.get("attendees");
-        int maxParticipants = (int) event.get("max_participants");
+        List<String> attendees = (List<String>) event.getOrDefault("attendees", new ArrayList<String>());
+        int maxParticipants = Integer.parseInt(event.get("max_participants").toString());
 
-        // Simple validation logic
         if (attendees.size() < maxParticipants && !attendees.contains(studentId)) {
             attendees.add(studentId);
             event.put("attendees", attendees);
-            
-            // Persist the update
             container.replaceItem(event, eventId, pk, new CosmosItemRequestOptions());
         }
+        return event;
+    }
+
+    /**
+     * FEATURE E: Detailed View with External API Integration
+     * Logic: Fetch local data from Cosmos + external data from APIs.
+     */
+    @GET
+    @Path("{event_id}/details")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Map<String, Object> getDetailedEvent(@PathParam("event_id") String eventId) {
+        // 1. Get student event from Cosmos
+        PartitionKey pk = new PartitionKey(eventId);
+        Map<String, Object> event = container.readItem(eventId, pk, Map.class).getItem();
+
+        // 2. Call External APIs
+        ExternalApiService external = new ExternalApiService();
+        
+       
 
         return event;
     }
