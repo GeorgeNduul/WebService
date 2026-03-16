@@ -1,146 +1,137 @@
 package myRESTws;
 
-import javax.ws.rs.*;
-import javax.ws.rs.core.*;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import org.json.JSONArray;
+
+/**
+ *
+ * @author t0337312
+ */
+
+
+import com.azure.cosmos.*;
+import com.azure.cosmos.models.*;
+import com.azure.cosmos.util.CosmosPagedIterable;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.MediaType;
+import java.util.*;
 import org.json.JSONObject;
 
-@Path("event")
+
+
+@Path("events")
 public class EventResource {
 
-    private final String FILE_PATH = "C:\\Users\\t0337312\\OneDrive - Nottingham Trent University\\Documents\\NetBeansProjects\\CWK\\student_meetup.json";
+    private static final String ENDPOINT = "https://t0337312.documents.azure.com:443/+";
+    private static final String KEY = "RzFCEjiExm09uTtwYHQRlKrCsieH8FGkvhVNA9AIHhON7v2U1oUHjkzvBRXEdlJkmS1aMyI9HCeaACDb4RNFXQ==";
+    private static final String DATABASE_NAME = "coursework";
+    private static final String CONTAINER_NAME = "Events";
+   private static final String PARTITION_KEY_FIELD = "event_id";
+
+    private final CosmosContainer container;
 
     public EventResource() {
+        CosmosClient client = new CosmosClientBuilder()
+                .endpoint(ENDPOINT)
+                .key(KEY)
+                .buildClient();
+        this.container = client.getDatabase(DATABASE_NAME).getContainer(CONTAINER_NAME);
     }
 
     /**
-     * Requirement (a): Subscribe to the system
-     * Usage: /event/subscribe?studentId=S123
+     * FEATURE A: Subscribe/Register a Student
+     * For a NoSQL approach, we can store students in a "Students" container 
+     * or simply acknowledge their ID for future publishing/booking.
      */
-    @GET
+    @POST
     @Path("subscribe")
-    @Produces("application/json")
-    public String subscribe(@QueryParam("studentId") String studentId) {
-        try {
-            String content = Files.readString(Paths.get(FILE_PATH), StandardCharsets.UTF_8);
-            JSONObject root = new JSONObject(content);
-            
-            // Ensure a 'students' array exists in your JSON
-            if (!root.has("students")) {
-                root.put("students", new JSONArray());
-            }
-            
-            JSONArray students = root.getJSONArray("students");
-            students.put(studentId);
-            
-            Files.writeString(Paths.get(FILE_PATH), root.toString(4), StandardCharsets.UTF_8);
-            return root.toString();
-        } catch (Exception e) {
-            System.out.println("Error in subscribe: " + e);
-            return "something went wrong;; debug the RESTful webservice";
-        }
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Map<String, Object> subscribeStudent(Map<String, Object> studentData) {
+        // Implementation logic for adding a student to a student container
+        // Returns the student object directly
+        return studentData; 
     }
 
     /**
-     * Requirement (c): List and Search for events
+     * FEATURE B: Add New Event
      */
-    @GET
-    @Path("search")
-    @Produces("application/json")
-    public String searchEvents(@QueryParam("type") String type, @QueryParam("location") String location) {
-        try {
-            String content = Files.readString(Paths.get(FILE_PATH), StandardCharsets.UTF_8);
-            JSONObject root = new JSONObject(content);
-            JSONArray allEvents = root.getJSONArray("student_meetup");
-            JSONArray filteredResults = new JSONArray();
-
-            for (int i = 0; i < allEvents.length(); i++) {
-                JSONObject event = allEvents.getJSONObject(i);
-                boolean matches = true;
-
-                if (type != null && !event.getString("type").equalsIgnoreCase(type)) matches = false;
-                if (location != null && !event.getString("location").toLowerCase().contains(location.toLowerCase())) matches = false;
-
-                if (matches) filteredResults.put(event);
-            }
-            return filteredResults.toString();
-        } catch (Exception e) {
-            System.out.println("Error in search: " + e);
-            return "something went wrong;; debug the RESTful webservice";
+    @POST
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Map<String, Object> addEvent(Map<String, Object> eventData) {
+        // Ensure the mandatory Cosmos 'id' field is set
+        if (!eventData.containsKey("id")) {
+            eventData.put("id", String.valueOf(eventData.get("event_id")));
         }
+        
+        // Initialize attendees if not provided
+        eventData.putIfAbsent("attendees", new ArrayList<String>());
+
+        container.createItem(eventData);
+        return eventData;
     }
 
     /**
-     * Requirement (b): Add new events
+     * FEATURE C: List and Search Events
+     * Dynamic filtering based on type, location, or cost.
      */
     @GET
-    @Path("add")
-    @Produces("application/json")
-    public String addEvent(
-            @QueryParam("pubId") String pubId, 
-            @QueryParam("title") String title,
+    @Produces(MediaType.APPLICATION_JSON)
+    public List<Map> searchEvents(
             @QueryParam("type") String type,
-            @QueryParam("loc") String loc,
-            @QueryParam("cost")String cost, 
-            @QueryParam("max") int max) {
-        try {
-            String content = Files.readString(Paths.get(FILE_PATH), StandardCharsets.UTF_8);
-            JSONObject root = new JSONObject(content);
-            JSONArray meetups = root.getJSONArray("student_meetup");
-            
-            JSONObject newEvent = new JSONObject();
-            newEvent.put("publisher_id", pubId);
-            newEvent.put("title", title);
-            newEvent.put("type", type);
-            newEvent.put("location", loc);
-            newEvent.put("max_participants", max);
-            newEvent.put("attendees", new JSONArray()); 
-            
-            meetups.put(newEvent);
-            Files.writeString(Paths.get(FILE_PATH), root.toString(4), StandardCharsets.UTF_8);
-            
-            return root.toString();
-        } catch (Exception e) {
-            System.out.println("Error in add: " + e);
-            return "something went wrong;; debug the RESTful webservice";
+            @QueryParam("location") String location,
+            @QueryParam("date") String date) {
+
+        StringBuilder sql = new StringBuilder("SELECT * FROM c WHERE 1=1");
+        List<SqlParameter> params = new ArrayList<>();
+
+        if (type != null) {
+            sql.append(" AND c.type = @type");
+            params.add(new SqlParameter("@type", type));
         }
+        if (location != null) {
+            sql.append(" AND CONTAINS(c.location, @loc)");
+            params.add(new SqlParameter("@loc", location));
+        }
+        if (date != null) {
+            sql.append(" AND c.date = @date");
+            params.add(new SqlParameter("@date", date));
+        }
+
+        SqlQuerySpec querySpec = new SqlQuerySpec(sql.toString(), params);
+        CosmosPagedIterable<Map> results = container.queryItems(querySpec, new CosmosQueryRequestOptions(), Map.class);
+
+        List<Map> eventList = new ArrayList<>();
+        results.forEach(eventList::add);
+        return eventList;
     }
 
     /**
-     * Requirement (d): Register/Book an event
+     * FEATURE D: Register for an Event
+     * Updates the attendees list for a specific event.
      */
-    @GET
-    @Path("book")
-    @Produces("application/json")
-    public String bookEvent(@QueryParam("eventTitle") String title, @QueryParam("studentId") String studentId) {
-        try {
-            String content = Files.readString(Paths.get(FILE_PATH), StandardCharsets.UTF_8);
-            JSONObject root = new JSONObject(content);
-            JSONArray meetups = root.getJSONArray("student_meetup");
+    @POST
+    @Path("{event_id}/register")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Map<String, Object> registerForEvent(@PathParam("event_id") String eventId, Map<String, String> body) {
+        String studentId = body.get("student_id");
+        
+        // Fetch existing event
+        PartitionKey pk = new PartitionKey(Integer.parseInt(eventId));
+        Map<String, Object> event = container.readItem(eventId, pk, Map.class).getItem();
 
-            for (int i = 0; i < meetups.length(); i++) {
-                JSONObject event = meetups.getJSONObject(i);
-                if (event.getString("title").equalsIgnoreCase(title)) {
-                    JSONArray attendees = event.getJSONArray("attendees");
-                    
-                    if (attendees.length() < event.getInt("max_participants")) {
-                        attendees.put(studentId);
-                    } else {
-                        return "{\"error\": \"Event full\"}";
-                    }
-                    break;
-                }
-            }
+        List<String> attendees = (List<String>) event.get("attendees");
+        int maxParticipants = (int) event.get("max_participants");
 
-            Files.writeString(Paths.get(FILE_PATH), root.toString(4), StandardCharsets.UTF_8);
-            return root.toString();
-        } catch (Exception e) {
-            System.out.println("Error in book: " + e);
-            return "something went wrong;; debug the RESTful webservice";
+        // Simple validation logic
+        if (attendees.size() < maxParticipants && !attendees.contains(studentId)) {
+            attendees.add(studentId);
+            event.put("attendees", attendees);
+            
+            // Persist the update
+            container.replaceItem(event, eventId, pk, new CosmosItemRequestOptions());
         }
+
+        return event;
     }
 }
