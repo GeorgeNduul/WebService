@@ -123,18 +123,30 @@ public class EventResource {
      * FEATURE E: Detailed View with External API Integration
      * Logic: Fetch local data from Cosmos + external data from APIs.
      */
+   /**
+     * FEATURE E: Research and utilise external RESTful services
+     * This endpoint combines internal NoSQL data with external Weather & Geolocation data.
+     */
     @GET
     @Path("{event_id}/details")
     @Produces(MediaType.APPLICATION_JSON)
-    public Map<String, Object> getDetailedEvent(@PathParam("event_id") String eventId) {
-        // 1. Get student event from Cosmos
+    public Map<String, Object> getExtendedEventDetails(@PathParam("event_id") String eventId) {
+        // 1. Fetch student event from Cosmos DB
         PartitionKey pk = new PartitionKey(eventId);
         Map<String, Object> event = container.readItem(eventId, pk, Map.class).getItem();
 
-        // 2. Call External APIs
+        // 2. Call External Services
         ExternalApiService external = new ExternalApiService();
         
-       
+        // 3. Add Weather for the city (Public Info)
+        // Using "Nottingham" as default for your campus events
+        event.put("current_weather", external.getWeather("Nottingham"));
+        
+        // 4. Add Landmarks (GeoNames POI)
+        // Using coordinates for Nottingham: 52.95, -1.15
+        event.put("nearby_landmarks", external.getLandmarks(52.95, -1.15));
+        
+        event.put("data_source_info", "Extended via OpenWeather and GeoNames APIs");
 
         return event;
     }
