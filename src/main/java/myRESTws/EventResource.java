@@ -6,17 +6,11 @@ import com.azure.cosmos.util.CosmosPagedIterable;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import java.util.*;
-import org.json.JSONArray;
-import org.json.JSONObject;
-
-/*
-author:t0337312
-*/
 
 @Path("events")
 public class EventResource {
 
-    private static final String ENDPOINT = "https://t0337312.documents.azure.com:443/+";
+    private static final String ENDPOINT = "https://t0337312.documents.azure.com:443/";
     private static final String KEY = "RzFCEjiExm09uTtwYHQRlKrCsieH8FGkvhVNA9AIHhON7v2U1oUHjkzvBRXEdlJkmS1aMyI9HCeaACDb4RNFXQ==";
     private static final String DATABASE_NAME = "coursework";
     private static final String CONTAINER_NAME = "Events";
@@ -31,123 +25,113 @@ public class EventResource {
         this.container = client.getDatabase(DATABASE_NAME).getContainer(CONTAINER_NAME);
     }
 
-    /**
-     * FEATURE A: Subscribe Student
-     */
-    @POST
-    @Path("subscribe")
-    @Consumes(MediaType.APPLICATION_JSON)
-    @Produces(MediaType.APPLICATION_JSON)
-    public Map<String, Object> subscribeStudent(Map<String, Object> studentData) {
-        studentData.put("subscription_date", new Date().toString());
-        return studentData; 
-    }
-
-    /**
-     * FEATURE B: Add New Event
-     */
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Map<String, Object> addEvent(Map<String, Object> eventData) {
-        if (eventData.containsKey("event_id")) {
-            eventData.put("id", String.valueOf(eventData.get("event_id")));
-        } else {
-            String newId = UUID.randomUUID().toString();
-            eventData.put("id", newId);
-            eventData.put("event_id", newId);
-        }
+        String id = eventData.containsKey("event_id") ? 
+                    String.valueOf(eventData.get("event_id")) : UUID.randomUUID().toString();
+        
+        eventData.put("id", id);
+        eventData.put("event_id", id);
         eventData.putIfAbsent("attendees", new ArrayList<String>());
+        eventData.putIfAbsent("attendance_list", new ArrayList<String>()); 
+        eventData.putIfAbsent("ratings", new ArrayList<Map<String, Object>>());
+        eventData.putIfAbsent("is_advertised", true); 
+        
         container.createItem(eventData);
         return eventData;
     }
 
-    /**
-     * FEATURE C: Sophisticated Search
-     */
     @GET
+    @Path("search")
     @Produces(MediaType.APPLICATION_JSON)
-    public List<Map> searchEvents(
-            @QueryParam("type") String type,
-            @QueryParam("location") String location,
-            @QueryParam("date") String date) {
-
-        StringBuilder sql = new StringBuilder("SELECT * FROM c WHERE 1=1");
-        List<SqlParameter> params = new ArrayList<>();
-
-        if (type != null && !type.isEmpty()) {
-            sql.append(" AND c.type = @type");
-            params.add(new SqlParameter("@type", type));
-        }
-        if (location != null && !location.isEmpty()) {
-            sql.append(" AND CONTAINS(LOWER(c.location), LOWER(@loc))");
-            params.add(new SqlParameter("@loc", location));
-        }
-        if (date != null && !date.isEmpty()) {
-            sql.append(" AND c.date = @date");
-            params.add(new SqlParameter("@date", date));
-        }
-
-        SqlQuerySpec querySpec = new SqlQuerySpec(sql.toString(), params);
-        CosmosPagedIterable<Map> results = container.queryItems(querySpec, new CosmosQueryRequestOptions(), Map.class);
-
-        List<Map> eventList = new ArrayList<>();
-        results.forEach(eventList::add);
-        return eventList;
+    public List<Map> searchEvents(@QueryParam("query") String query) {
+        String sql = "SELECT * FROM c WHERE CONTAINS(LOWER(c.title), LOWER('" + query + "')) OR LOWER(c.type) = LOWER('" + query + "')";
+        CosmosPagedIterable<Map> results = container.queryItems(sql, new CosmosQueryRequestOptions(), Map.class);
+        List<Map> list = new ArrayList<>();
+        results.forEach(list::add);
+        return list;
     }
 
-    /**
-     * FEATURE D: Register for Event
-     */
-    @POST
-    @Path("{event_id}/register")
-    @Consumes(MediaType.APPLICATION_JSON)
+    @GET
+    @Path("promoted")
     @Produces(MediaType.APPLICATION_JSON)
-    public Map<String, Object> registerForEvent(@PathParam("event_id") String eventId, Map<String, String> body) {
-        String studentId = body.get("student_id");
-        PartitionKey pk = new PartitionKey(eventId);
-        Map<String, Object> event = container.readItem(eventId, pk, Map.class).getItem();
+    public List<Map> getPromotedEvents() {
+        String sql = "SELECT * FROM c WHERE c.is_advertised = true";
+        CosmosPagedIterable<Map> results = container.queryItems(sql, new CosmosQueryRequestOptions(), Map.class);
+        List<Map> list = new ArrayList<>();
+        results.forEach(list::add);
+        return list;
+    }
+
+   @POST
+@Path("{event_id}/register")
+@Produces(MediaType.APPLICATION_JSON)
+public Map<String, Object> register(@PathParam("event_id") String event_id, Map<String, String> body) {
+    try {
+        // IMPORTANT: Ensure your PartitionKey matches the ID
+        PartitionKey pk = new PartitionKey(event_id);
+        
+        // Use readItem but check if it actually exists
+        CosmosItemResponse<Map> response = container.readItem(event_id, pk, Map.class);
+        Map<String, Object> event = response.getItem();
+
+        if (event == null) {
+            return Collections.singletonMap("error", "Event ID not found in database.");
+        }
 
         List<String> attendees = (List<String>) event.getOrDefault("attendees", new ArrayList<String>());
-        int maxParticipants = Integer.parseInt(event.get("max_participants").toString());
+        String sId = body.get("student_id");
 
-        if (attendees.size() < maxParticipants && !attendees.contains(studentId)) {
-            attendees.add(studentId);
+        if (sId != null && !attendees.contains(sId)) {
+            attendees.add(sId);
             event.put("attendees", attendees);
-            container.replaceItem(event, eventId, pk, new CosmosItemRequestOptions());
+            container.replaceItem(event, event_id, pk, new CosmosItemRequestOptions());
         }
         return event;
+
+    } catch (com.azure.cosmos.CosmosException ce) {
+        // If the ID isn't found, Cosmos throws an exception. We catch it here.
+        return Collections.singletonMap("error", "CosmosDB Error: Item likely does not exist.");
+    } catch (Exception e) {
+        return Collections.singletonMap("error", "Server Error: " + e.getMessage());
+    }
+}
+
+    @POST
+    @Path("{event_id}/attendance")
+    public Map<String, Object> markAttendance(@PathParam("event_id") String eventId, Map<String, String> body) {
+        try {
+            PartitionKey pk = new PartitionKey(eventId);
+            Map<String, Object> event = container.readItem(eventId, pk, Map.class).getItem();
+            List<String> attendance = (List<String>) event.getOrDefault("attendance_list", new ArrayList<String>());
+            String sId = body.get("student_id");
+            if (sId != null && !attendance.contains(sId)) {
+                attendance.add(sId);
+                event.put("attendance_list", attendance);
+                container.replaceItem(event, eventId, pk, new CosmosItemRequestOptions());
+            }
+            return event;
+        } catch (Exception e) {
+            return Collections.singletonMap("error", "Event Not Found");
+        }
     }
 
-    /**
-     * FEATURE E: Detailed View with External API Integration
-     * Logic: Fetch local data from Cosmos + external data from APIs.
-     */
-   /**
-     * FEATURE E: Research and utilise external RESTful services
-     * This endpoint combines internal NoSQL data with external Weather & Geolocation data.
-     */
-    @GET
-    @Path("{event_id}/details")
-    @Produces(MediaType.APPLICATION_JSON)
-    public Map<String, Object> getExtendedEventDetails(@PathParam("event_id") String eventId) {
-        // 1. Fetch student event from Cosmos DB
-        PartitionKey pk = new PartitionKey(eventId);
-        Map<String, Object> event = container.readItem(eventId, pk, Map.class).getItem();
-
-        // 2. Call External Services
-        ExternalApiService external = new ExternalApiService();
-        
-        // 3. Add Weather for the city (Public Info)
-        // Using "Nottingham" as default for your campus events
-        event.put("current_weather", external.getWeather("Nottingham"));
-        
-        // 4. Add Landmarks (GeoNames POI)
-        // Using coordinates for Nottingham: 52.95, -1.15
-        event.put("nearby_landmarks", external.getLandmarks(52.95, -1.15));
-        
-        event.put("data_source_info", "Extended via OpenWeather and GeoNames APIs");
-
-        return event;
+    @POST
+    @Path("{event_id}/rate")
+    public Map<String, Object> rateEvent(@PathParam("event_id") String eventId, Map<String, Object> ratingData) {
+        try {
+            PartitionKey pk = new PartitionKey(eventId);
+            Map<String, Object> event = container.readItem(eventId, pk, Map.class).getItem();
+            List<Map<String, Object>> ratings = (List<Map<String, Object>>) event.getOrDefault("ratings", new ArrayList<Map<String, Object>>());
+            ratingData.put("rating_date", new java.util.Date().toString());
+            ratings.add(ratingData);
+            event.put("ratings", ratings);
+            container.replaceItem(event, eventId, pk, new CosmosItemRequestOptions());
+            return event;
+        } catch (Exception e) {
+            return Collections.singletonMap("error", "Event Not Found");
+        }
     }
 }
