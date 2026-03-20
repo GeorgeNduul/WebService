@@ -1,6 +1,6 @@
         package myRESTws;
 
-import static com.azure.core.http.HttpHeaderName.FROM;
+        import static com.azure.core.http.HttpHeaderName.FROM;
         import com.azure.cosmos.*;
         import com.azure.cosmos.models.*;
         import com.azure.cosmos.util.CosmosPagedIterable;
@@ -25,6 +25,7 @@ import static com.azure.core.http.HttpHeaderName.FROM;
 
             public EventResource() {
                 // this is connecting the information in the database using the key and endpoint 
+                //im using a singleton like pattern ensuring that the app doesnt have to reconnect for every single request which improves performance 
                 CosmosClient client = new CosmosClientBuilder()
                         .endpoint(ENDPOINT)
                         .key(KEY)
@@ -32,7 +33,7 @@ import static com.azure.core.http.HttpHeaderName.FROM;
                 this.container = client.getDatabase(DATABASE_NAME).getContainer(CONTAINER_NAME);
             }
 
-            // --- Private Helper: Reduces Redundant Code ---
+            // --- Private Helper: Reduces Redundant Code --- code not mine
             private Map<String, Object> findEventById(String id) {
                 try {
                     return container.readItem(id, new PartitionKey(id), Map.class).getItem();
@@ -42,7 +43,9 @@ import static com.azure.core.http.HttpHeaderName.FROM;
             }
 
             // --- Endpoints ---
-
+            // creating events receives json from the gui an then saves it as a new document 
+            //it initalises empty lists so that the document structure is consistent
+            //by intialising this lists i prevent null pointer exceptions later when the user try to register
             @POST
             @Consumes(MediaType.APPLICATION_JSON)
             @Produces(MediaType.APPLICATION_JSON)
@@ -60,37 +63,40 @@ import static com.azure.core.http.HttpHeaderName.FROM;
                 container.createItem(eventData);
                 return eventData;
             }
-
+            // search uses CONTAINS(LOWER(...)) for Case-Insensitive Partial Matching.
+            //I used SqlQuerySpec to prevent SQL Injection attacks, ensuring that user input is treated as data, not executable code.
            @GET
-@Path("search")
-@Produces(MediaType.APPLICATION_JSON)
-public List<Map> searchEvents(@QueryParam("query") String query) {
-    List<Map> list = new ArrayList<>();
-    
-    // Handle empty search by returning all events
-    if (query == null || query.trim().isEmpty()) {
-        container.queryItems("SELECT * FROM c", new CosmosQueryRequestOptions(), Map.class)
-                 .forEach(list::add);
-        return list;
-    }
+         @Path("search")
+         @Produces(MediaType.APPLICATION_JSON)
+         public List<Map> searchEvents(@QueryParam("query") String query) {
+             List<Map> list = new ArrayList<>();
 
-    // 1. Define the sophisticated SQL query with case-insensitive partial matching
-    String sql = "SELECT * FROM c WHERE " +
-                 "CONTAINS(LOWER(c.title), LOWER(@searchQuery)) OR " +
-                 "CONTAINS(LOWER(c.type), LOWER(@searchQuery)) OR " +
-                 "CONTAINS(LOWER(c.location), LOWER(@searchQuery))";
+             // Handle empty search by returning all events
+             if (query == null || query.trim().isEmpty()) {
+                 container.queryItems("SELECT * FROM c", new CosmosQueryRequestOptions(), Map.class)
+                          .forEach(list::add);
+                 return list;
+             }
 
-    // 2. Use SqlQuerySpec to safely inject the parameter (Security Best Practice)
-    SqlQuerySpec querySpec = new SqlQuerySpec(sql, 
-        new SqlParameter("@searchQuery", query.trim())
-    );
+             // 1. Define the sophisticated SQL query with case-insensitive partial matching
+             String sql = "SELECT * FROM c WHERE " +
+                          "CONTAINS(LOWER(c.title), LOWER(@searchQuery)) OR " +
+                          "CONTAINS(LOWER(c.type), LOWER(@searchQuery)) OR " +
+                          "CONTAINS(LOWER(c.location), LOWER(@searchQuery))";
 
-    // 3. Execute and collect results
-    container.queryItems(querySpec, new CosmosQueryRequestOptions(), Map.class)
-             .forEach(list::add);
+             // 2. Use SqlQuerySpec to safely inject the parameter (Security Best Practice)
+             SqlQuerySpec querySpec = new SqlQuerySpec(sql, 
+                 new SqlParameter("@searchQuery", query.trim())
+             );
 
-    return list;
-}
+             // 3. Execute and collect results
+             container.queryItems(querySpec, new CosmosQueryRequestOptions(), Map.class)
+                      .forEach(list::add);
+
+             return list;
+         }
+         // handles the filtering of events the database does the filtering which makes the app much faster
+         // this is a system driven discovery , it simulates a paid peomotion tier ensures high visibility regardless what the user searches for
             @GET
             @Path("promoted")
             @Produces(MediaType.APPLICATION_JSON)
@@ -102,6 +108,9 @@ public List<Map> searchEvents(@QueryParam("query") String query) {
                 return list;
             }
 
+            // this three methods function as the business logic handling state of an event
+            //They use Atomic Updates (fetching the item, modifying the list in Java, and replacing it in the DB).
+            // it enforces rules no duplicates that the data doesnt know about 
             @POST
             @Path("{event_id}/register")
             @Produces(MediaType.APPLICATION_JSON)
@@ -119,7 +128,6 @@ public List<Map> searchEvents(@QueryParam("query") String query) {
                 }
                 return event;
             }
-
             @POST
             @Path("{event_id}/attendance")
             @Produces(MediaType.APPLICATION_JSON)
@@ -153,6 +161,7 @@ public List<Map> searchEvents(@QueryParam("query") String query) {
                 container.replaceItem(event, eventId, new PartitionKey(eventId), new CosmosItemRequestOptions());
                 return event;
             }
+// data enrichment taking static databse records and making it useful for the end user
 
             @GET
             @Path("{event_id}/details")
@@ -191,6 +200,10 @@ public List<Map> searchEvents(@QueryParam("query") String query) {
 
                 return event;
             }
+            
+            // this removes an event from the cloud and requires a patriton key to do so
+            //this is an azure security requirement 
+            //It specifically catches CosmosException. If the event was already deleted or doesn't exist, it returns a 404 error instead of a generic fail.
             @DELETE
     @Path("{event_id}")
     @Produces(MediaType.APPLICATION_JSON)

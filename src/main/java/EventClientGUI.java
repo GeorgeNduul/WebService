@@ -22,6 +22,10 @@ public class EventClientGUI extends JFrame {
     private JTextField targetIdF, studentIdF, scoreF, commentF, searchF;
     private JTextArea displayArea;
 
+    
+    //i used  TitledBorders. This is a UX (User Experience) choice that makes the application intuitive by grouping related functions (like "Search" vs. "Create").
+    //The West (left) contains all my input panels in a BoxLayout (stacked vertically), while the Center contains the JTextArea for results
+    // setups window and organises components    
     public EventClientGUI() {
         setTitle("Campus Event Management System");
         setSize(1000, 850);
@@ -111,6 +115,8 @@ public class EventClientGUI extends JFrame {
 
     // --- Logic Methods ---
 
+    //search query It uses URLEncoder.encode(query, StandardCharsets.UTF_8)
+    //I used URL Encoding to ensure that special characters or spaces in the search query don't break the HTTP request format.
     private void handleSearch() {
         String query = searchF.getText().trim();
         if (query.isEmpty()) {
@@ -120,7 +126,10 @@ public class EventClientGUI extends JFrame {
             sendRequest(BASE_URL + "/search?query=" + encoded, "GET", null);
         }
     }
-
+ 
+    // collects data from text field and packs it into a json object 
+    //It uses Integer.parseInt and Double.parseDouble. I added a "Sanitization" step: replaceAll("[^0-9]", "0").
+    //this sanitization prevents the app from crashing if a user accidentally types a "$" or a letter in the "Cost" field. It’s called Input Validation.
     private void addEvent() {
         try {
             JSONObject json = new JSONObject();
@@ -141,77 +150,85 @@ public class EventClientGUI extends JFrame {
         }
     }
 
-    private void performAction(String action) {
-        String id = targetIdF.getText().trim();
-        if (id.isEmpty()) { displayArea.setText("Error: Need Event ID"); return; }
-        JSONObject json = new JSONObject();
-        json.put("student_id", studentIdF.getText().trim());
-        sendRequest(BASE_URL + "/" + id + "/" + action, "POST", json.toString());
-    }
-
-    private void getDetailedInfo() {
-        String id = targetIdF.getText().trim();
-        if (id.isEmpty()) { displayArea.setText("Error: Enter Event ID in Session Panel"); return; }
-        sendRequest(BASE_URL + "/" + id + "/details", "GET", null);
-    }
-
-    private void submitRating() {
-    String id = targetIdF.getText().trim();
-    if (id.isEmpty()) {
-        displayArea.setText("⚠️ Error: Please enter a Target Event ID first.");
-        return;
-    }
-
-    try {
-        // 1. Sanitize the input to get only numbers
-        String scoreStr = scoreF.getText().replaceAll("[^0-9]", "");
-        int score = scoreStr.isEmpty() ? 0 : Integer.parseInt(scoreStr);
-
-        // 2. RANGE VALIDATION (The 1-5 Rule)
-        if (score < 1 || score > 5) {
-            displayArea.setText("⛔ Invalid Score: Rating must be between 1 and 5.");
-            displayArea.setForeground(Color.RED);
-            return; // Stop the method here so the request is never sent
+        private void performAction(String action) {
+            String id = targetIdF.getText().trim();
+            if (id.isEmpty()) { displayArea.setText("Error: Need Event ID"); return; }
+            JSONObject json = new JSONObject();
+            json.put("student_id", studentIdF.getText().trim());
+            sendRequest(BASE_URL + "/" + id + "/" + action, "POST", json.toString());
         }
 
-        // 3. If valid, build the JSON and send the request
-        JSONObject json = new JSONObject();
-        json.put("student_id", studentIdF.getText().trim());
-        json.put("comment", commentF.getText().trim());
-        json.put("score", score);
-
-        sendRequest(BASE_URL + "/" + id + "/rate", "POST", json.toString());
-        
-    } catch (Exception e) {
-        displayArea.setText("❌ Error building rating: " + e.getMessage());
-    }
-}
-
-    private void deleteEvent() {
-        String id = targetIdF.getText().trim();
-        if (id.isEmpty()) { displayArea.setText("Error: Need Event ID to delete."); return; }
-        int confirm = JOptionPane.showConfirmDialog(this, "Delete event " + id + "?", "Confirm", JOptionPane.YES_NO_OPTION);
-        if (confirm == JOptionPane.YES_OPTION) {
-            sendRequest(BASE_URL + "/" + id, "DELETE", null);
+        private void getDetailedInfo() {
+            String id = targetIdF.getText().trim();
+            if (id.isEmpty()) { displayArea.setText("Error: Enter Event ID in Session Panel"); return; }
+            sendRequest(BASE_URL + "/" + id + "/details", "GET", null);
         }
-    }
 
-    private void openInMap() {
+        // It checks the score before calling sendRequest
+        // this is client side validation it autmoatically say no if invalid instead of waiting fpr the server to repsond 
+        private void submitRating() {
+        String id = targetIdF.getText().trim();
+        if (id.isEmpty()) {
+            displayArea.setText("⚠️ Error: Please enter a Target Event ID first.");
+            return;
+        }
+
         try {
-            String lat = latF.getText().trim();
-            String lng = lngF.getText().trim();
-            String url = "http://maps.google.com/?q=" + lat + "," + lng;
-            Desktop.getDesktop().browse(new URI(url));
-        } catch (Exception ex) {
-            displayArea.setText("Error opening map: " + ex.getMessage());
+            // 1. Sanitize the input to get only numbers
+            String scoreStr = scoreF.getText().replaceAll("[^0-9]", "");
+            int score = scoreStr.isEmpty() ? 0 : Integer.parseInt(scoreStr);
+
+            // 2. RANGE VALIDATION (The 1-5 Rule)
+            if (score < 1 || score > 5) {
+                displayArea.setText("⛔ Invalid Score: Rating must be between 1 and 5.");
+                displayArea.setForeground(Color.RED);
+                return; // Stop the method here so the request is never sent
+            }
+
+            // 3. If valid, build the JSON and send the request
+            JSONObject json = new JSONObject();
+            json.put("student_id", studentIdF.getText().trim());
+            json.put("comment", commentF.getText().trim());
+            json.put("score", score);
+
+            sendRequest(BASE_URL + "/" + id + "/rate", "POST", json.toString());
+
+        } catch (Exception e) {
+            displayArea.setText("❌ Error building rating: " + e.getMessage());
         }
     }
+
+        private void deleteEvent() {
+            String id = targetIdF.getText().trim();
+            if (id.isEmpty()) { displayArea.setText("Error: Need Event ID to delete."); return; }
+            int confirm = JOptionPane.showConfirmDialog(this, "Delete event " + id + "?", "Confirm", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
+                sendRequest(BASE_URL + "/" + id, "DELETE", null);
+            }
+        }
+//Launches the user's default web browser to show the event location.
+//It takes the lat and lng from the text fields and builds a Google Maps URL
+//This demonstrates Inter-App Communication (Desktop Integration).  Java app is successfully controlling other software on the computer.        
+        private void openInMap() {
+            try {
+                String lat = latF.getText().trim();
+                String lng = lngF.getText().trim();
+                String url = "http://maps.google.com/?q=" + lat + "," + lng;
+                Desktop.getDesktop().browse(new URI(url));
+            } catch (Exception ex) {
+                displayArea.setText("Error opening map: " + ex.getMessage());
+            }
+        }
 
     private void clearFields() {
         titleF.setText(""); locF.setText(""); targetIdF.setText("");
         displayArea.setText("Form Reset.");
     }
-
+// this handles all outgoing api calls
+// httpClient.sendAsync for asynchronous processing 
+// sendAsync prevents the gui from freezing whil awaiting response from the cloud
+//It checks the content of the response. If it sees "external_weather," it triggers the Travel Report formatting; otherwise, it treats it as standard JSON.
+//SwingUtilities.invokeLater using this to update the displayArea. In Java, you can only change the UI from the "Event Dispatch Thread"    
     private void sendRequest(String url, String method, String jsonBody) {
         HttpRequest.Builder builder = HttpRequest.newBuilder().uri(URI.create(url));
         

@@ -26,6 +26,12 @@ public class ExternalApiService {
     /**
      * FEATURE E: Get Weather (Public Information)
      */
+    
+    //URL Encoding: URLEncoder.encode(city, "UTF-8") ensures that spaces in city names (like "New York") don't break the web address.
+    //It extracts the temp and description.
+//It takes the timezone offset (seconds from UTC) and adds it to the current UTC time to calculate exactly what time it is at the event location.
+    // converting raw Unix-style offsets into a human readable HH:mm format using the java.time api  
+    
    public String getWeather(String city) {
     try {
         String encodedCity = java.net.URLEncoder.encode(city, "UTF-8");
@@ -58,6 +64,8 @@ public class ExternalApiService {
 }
 
 // Helper method to map descriptions to emojis
+   // simple form of natural language processing
+   //it uses .contain()to find keywords If the API returns "heavy intensity rain," the code sees the word "rain" and picks the 🌧️ emoji.
 private String getWeatherEmoji(String desc) {
     desc = desc.toLowerCase();
     if (desc.contains("clear") || desc.contains("sun")) return "☀️";
@@ -71,6 +79,9 @@ private String getWeatherEmoji(String desc) {
     /**
      * FEATURE E: Get GeoNames (Places of Interest)
      */
+
+// this adds contextual value instead of just seeing a map the user can see what else is interesting 
+// it sends lat and long which returns a findNearbyWikipediaJSON of list entries in that location
     public List<String> getLandmarks(double lat, double lng) {
         List<String> landmarks = new ArrayList<>();
         try {
@@ -80,6 +91,7 @@ private String getWeatherEmoji(String desc) {
             if (resp != null) {
                 JSONObject json = new JSONObject(resp);
                 JSONArray array = json.getJSONArray("geonames");
+                // only returns 3 landmarks 
                 for (int i = 0; i < Math.min(array.length(), 3); i++) {
                     landmarks.add(array.getJSONObject(i).getString("title"));
                 }
@@ -87,7 +99,8 @@ private String getWeatherEmoji(String desc) {
         } catch (Exception e) { landmarks.add("Landmarks unavailable"); }
         return landmarks;
     }
-
+// this is a generic helper method that handles the actual internet connection
+ // im using a string builder because its more memory effiecient than using a  string to join many texts lof line together in a loop
     private String makeRequest(String urlStr) throws Exception {
         URL url = new URL(urlStr);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
