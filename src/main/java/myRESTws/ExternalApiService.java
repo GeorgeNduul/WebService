@@ -20,27 +20,54 @@ import org.json.JSONObject;
 
 public class ExternalApiService {
 
-    private static final String GEONAMES_USER = "t0337312"; // Use your verified username
+    private static final String GEONAMES_USER = "t0337312"; 
     private static final String WEATHER_KEY = "d60973c5d7ded4bc5f445679e133aeb6"; 
 
     /**
      * FEATURE E: Get Weather (Public Information)
      */
-    public String getWeather(String city) {
-        try {
-            String urlString = "https://api.openweathermap.org/data/2.5/weather?q=" 
-                                + city + "&units=metric&appid=" + WEATHER_KEY;
-            String resp = makeRequest(urlString);
-            if (resp != null) {
-                JSONObject json = new JSONObject(resp);
-                double temp = json.getJSONObject("main").getDouble("temp");
-                String desc = json.getJSONArray("weather").getJSONObject(0).getString("description");
-                return temp + "°C, " + desc;
-            }
-        } catch (Exception e) { return "Weather info unavailable"; }
-        return "Weather info unavailable";
-    }
+   public String getWeather(String city) {
+    try {
+        String encodedCity = java.net.URLEncoder.encode(city, "UTF-8");
+        String urlString = "https://api.openweathermap.org/data/2.5/weather?q=" 
+                           + encodedCity + "&units=metric&appid=" + WEATHER_KEY;
+        
+        String resp = makeRequest(urlString);
+        if (resp != null) {
+            JSONObject json = new JSONObject(resp);
+            
+            double temp = json.getJSONObject("main").getDouble("temp");
+            String desc = json.getJSONArray("weather").getJSONObject(0).getString("description");
+            
+            // 1. Get the Emoji based on the description
+            String emoji = getWeatherEmoji(desc);
 
+            // 2. Calculate Local Time
+            long timezoneOffsetSeconds = json.getLong("timezone");
+            java.time.OffsetDateTime localTime = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC)
+                                                 .plusSeconds(timezoneOffsetSeconds);
+            String formattedTime = localTime.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+
+            // 3. Return the "Beautified" string
+            return emoji + " " + temp + "°C, " + desc + " (Local Time: " + formattedTime + ")";
+        }
+    } catch (Exception e) { 
+        return "Weather & Time info unavailable"; 
+    }
+    return "Weather & Time info unavailable";
+}
+
+// Helper method to map descriptions to emojis
+private String getWeatherEmoji(String desc) {
+    desc = desc.toLowerCase();
+    if (desc.contains("clear") || desc.contains("sun")) return "☀️";
+    if (desc.contains("cloud")) return "☁️";
+    if (desc.contains("rain") || desc.contains("drizzle")) return "🌧️";
+    if (desc.contains("thunder")) return "⛈️";
+    if (desc.contains("snow")) return "❄️";
+    if (desc.contains("mist") || desc.contains("fog") || desc.contains("haze")) return "🌫️";
+    return "🌍"; // Default emoji
+}
     /**
      * FEATURE E: Get GeoNames (Places of Interest)
      */
